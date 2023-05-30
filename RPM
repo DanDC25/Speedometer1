@@ -1,0 +1,63 @@
+import board
+import busio
+import displayio
+import digitalio
+import terminalio
+import time
+from adafruit_display_text import label
+import adafruit_displayio_sh1106
+
+displayio.release_displays()
+
+# Connect display via I2C
+i2c = busio.I2C(board.GP17, board.GP16) # SCL SDA
+display_bus = displayio.I2CDisplay(i2c, device_address=0x3C)
+display = adafruit_displayio_sh1106.SH1106(display_bus, width=128, height=64, colstart=2)
+
+# Set up magnetic sensor
+sensor_pin = digitalio.DigitalInOut(board.GP4)
+sensor_pin.direction = digitalio.Direction.INPUT
+sensor_pin.pull = digitalio.Pull.UP
+
+SAMPLE_PERIOD = 0.001 # seconds
+SAMPLE_SIZE = 500 # number of measurements to analyze at a time
+
+# Set up lists to use for analysis
+num_transitions = 0
+time_of_rotation = 0.0
+
+current_time = 0.0
+elapsed_time = 0
+start_time = time.monotonic()
+stop_collecting = False
+old_pulsetime = 0
+
+# This starts the data collection loopwhile not stop_collecting:
+
+    # Read the magnetic sensor value
+    sensor_value = sensor_pin.value
+
+    # Once the magnet passes by, process the data.
+    if sensor_value == False:
+
+        current_time = time.monotonic()
+        time_of_rotation = current_time - old_pulsetime
+        old_pulsetime = current_time
+        num_transitions += 1
+
+        # If enough data points have been collected, calculate RPM and display the value
+        if num_transitions >= SAMPLE_SIZE:
+            RPM = num_transitions * 2 * 60 / (time_of_rotation * SAMPLE_SIZE)
+            print("RPM: {0}".format(RPM))
+            num_transitions = 0
+
+            # Display the RPM on the OLED display
+            display.fill(0)
+            text = str(RPM)
+            text_area = label.Label(terminalio.FONT, text=text, color=1)
+            text_area.x = 10
+            text_area.y = 20
+            display.show(text_area)
+            time.sleep(0.1)
+
+    time.sleep(SAMPLE_PERIOD)
